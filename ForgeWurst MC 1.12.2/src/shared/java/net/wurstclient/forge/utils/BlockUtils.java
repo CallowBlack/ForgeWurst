@@ -8,9 +8,7 @@
 package net.wurstclient.forge.utils;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,9 +17,7 @@ import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.network.NetHandlerPlayClient;
-import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.init.Blocks;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.CPacketAnimation;
 import net.minecraft.network.play.client.CPacketPlayerDigging;
@@ -43,9 +39,7 @@ public final class BlockUtils
 {
 
 	private static final Minecraft mc = Minecraft.getMinecraft();
-
-	private static final Map<String, IBlockState[]> nameToBlock = new HashMap<>();
-	private static final Map<IBlockState, String[]> blockToName = new HashMap<>();
+	private static final Map<String, List<IBlockState>> nameToBlock = new HashMap<>();
 
 	private static void updateBlockMap() {
 		ObjectIntIdentityMap<IBlockState> blockItemMap = GameData.getBlockStateIDMap();
@@ -53,28 +47,19 @@ public final class BlockUtils
 			Block block = blockState.getBlock();
 			String blockName = Objects.requireNonNull(block.getRegistryName()).getResourceDomain() + ":" + block.getRegistryName().getResourcePath();
 			String blockId = String.valueOf(Block.REGISTRY.getIDForObject(block));
-			Item blockItem = Item.getItemFromBlock(block);
 
-			IBlockState[] blockStates;
-
-			blockToName.put(blockState, new String[] { blockName, blockName + "/0"});
-			if (blockItem.getHasSubtypes()){
-				NonNullList<ItemStack> subItems = NonNullList.create();
-				blockItem.getSubItems(CreativeTabs.SEARCH, subItems);
-
-				blockStates = new IBlockState[subItems.size()];
-				blockStates[0] = blockState;
-
-				for (int i = 1; i < subItems.size(); i++){
-					blockStates[i] = Block.getBlockFromItem(subItems.get(i).getItem()).getStateFromMeta(i);
-					blockToName.put(blockStates[i], new String[] {blockName, blockName + "/" + i});
-				}
+			List<IBlockState> blockStates;
+			if (nameToBlock.containsKey(blockName))
+				blockStates = nameToBlock.get(blockName);
+			else{
+				blockStates = new ArrayList<>();
+				nameToBlock.put(blockName, blockStates);
+				nameToBlock.put(blockId, blockStates);
 			}
-			else {
-				blockStates = new IBlockState[] {blockState};
-			}
-			nameToBlock.put(blockName, blockStates);
-			nameToBlock.put(blockId, blockStates);
+			if (blockStates.contains(blockState))
+				continue;
+
+			blockStates.add(blockState);
 		}
 	}
 	
@@ -102,32 +87,18 @@ public final class BlockUtils
 			return null;
 
 		String mainName = getMainName(blockState.getBlock());
-		if (mainName == null)
-			return null;
-
 		if (nameAndId[1] != null)
 			mainName += "/" + nameAndId[1];
 		return mainName;
 	}
 
-	@Nullable
 	public static String getMainName(Block block)
 	{
-		if (blockToName.size() == 0)
-			updateBlockMap();
-
-		if (blockToName.containsKey(block.getDefaultState()))
-			return blockToName.get(block.getDefaultState())[0];
-		else
-			return null;
+		return Objects.requireNonNull(block.getRegistryName()).getResourceDomain() + ":" + block.getRegistryName().getResourcePath();
 	}
 
-	@Nullable
-	public static String[] getNamePair(IBlockState blockState) {
-		if (blockToName.size() == 0)
-			updateBlockMap();
-
-		return blockToName.getOrDefault(blockState, null);
+	public static String getSubName(IBlockState blockState) {
+		return getMainName(blockState.getBlock()) + "/" + blockState.getBlock().getMetaFromState(blockState);
 	}
 
 	private static String[] parseName(String name) {
@@ -152,9 +123,9 @@ public final class BlockUtils
 		int id = nameAndId[1] == null ? 0 : Integer.parseInt(nameAndId[1]);
 		if (nameToBlock.containsKey(mainName))
 		{
-			IBlockState[] states = nameToBlock.get(mainName);
-			if (states.length > id)
-				return states[id];
+			List<IBlockState> states = nameToBlock.get(mainName);
+			if (states.size() > id)
+				return states.get(id);
 		}
 		return null;
 	}

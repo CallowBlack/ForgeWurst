@@ -36,9 +36,9 @@ public final class BlockListSetting extends Setting
 	{
 		super(name, description);
 
-		Arrays.stream(blocks).parallel()
-				.map(BlockUtils::getMainName)
-			.distinct().sorted().forEachOrdered(blockNames::add);
+//		Arrays.stream(blocks).parallel()
+//				.map(BlockUtils::getMainName)
+//			.distinct().sorted().forEachOrdered(blockNames::add);
 		defaultNames = blockNames.toArray(new String[0]);
 	}
 	

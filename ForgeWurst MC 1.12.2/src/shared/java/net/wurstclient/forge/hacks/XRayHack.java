@@ -7,10 +7,7 @@
  */
 package net.wurstclient.forge.hacks;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import com.google.common.collect.BiMap;
 import net.minecraft.block.Block;
@@ -123,16 +120,13 @@ public final class XRayHack extends Hack
 	{
 		if(!isVisible(event.getTileEntity().getBlockType().getStateFromMeta(event.getTileEntity().getBlockMetadata())))
 			event.setCanceled(true);
+
 	}
 	
 	private boolean isVisible(IBlockState blockState)
 	{
-		String[] names = BlockUtils.getNamePair(blockState);
-		if (names != null){
-			int indexMain = Collections.binarySearch(blockNames, names[0]);
-			int indexSubType = Collections.binarySearch(blockNames, names[1]);
-			return indexMain >= 0 || indexSubType >= 0;
-		}
-		return false;
+		int indexMain = Collections.binarySearch(blockNames, BlockUtils.getMainName(blockState.getBlock()));
+		int indexSubType = Collections.binarySearch(blockNames, BlockUtils.getSubName(blockState));
+		return indexMain >= 0 || indexSubType >= 0;
 	}
 }
