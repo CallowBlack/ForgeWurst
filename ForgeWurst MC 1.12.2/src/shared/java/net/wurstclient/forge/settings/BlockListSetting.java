@@ -19,10 +19,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.wurstclient.forge.ForgeWurst;
 import net.wurstclient.forge.clickgui.BlockListEditButton;
 import net.wurstclient.forge.clickgui.Component;
 import net.wurstclient.forge.utils.BlockUtils;
+
+import javax.rmi.CORBA.Util;
 
 public final class BlockListSetting extends Setting
 {
@@ -32,9 +35,10 @@ public final class BlockListSetting extends Setting
 	public BlockListSetting(String name, String description, Block... blocks)
 	{
 		super(name, description);
-		
-		Arrays.stream(blocks).parallel().map(b -> BlockUtils.getName(b))
-			.distinct().sorted().forEachOrdered(s -> blockNames.add(s));
+
+		Arrays.stream(blocks).parallel()
+				.map(BlockUtils::getMainName)
+			.distinct().sorted().forEachOrdered(blockNames::add);
 		defaultNames = blockNames.toArray(new String[0]);
 	}
 	
@@ -48,13 +52,13 @@ public final class BlockListSetting extends Setting
 		return Collections.unmodifiableList(blockNames);
 	}
 	
-	public void add(Block block)
+	public void add(String blockName)
 	{
-		String name = BlockUtils.getName(block);
-		if(Collections.binarySearch(blockNames, name) >= 0)
+		blockName = BlockUtils.idToName(blockName);
+		if(Collections.binarySearch(blockNames, blockName) >= 0)
 			return;
 		
-		blockNames.add(name);
+		blockNames.add(blockName);
 		Collections.sort(blockNames);
 		ForgeWurst.getForgeWurst().getHax().saveSettings();
 	}
@@ -89,11 +93,12 @@ public final class BlockListSetting extends Setting
 		
 		blockNames.clear();
 		StreamSupport.stream(json.getAsJsonArray().spliterator(), true)
-			.filter(e -> e.isJsonPrimitive())
-			.filter(e -> e.getAsJsonPrimitive().isString())
-			.map(e -> Block.getBlockFromName(e.getAsString()))
-			.filter(Objects::nonNull).map(b -> BlockUtils.getName(b)).distinct()
-			.sorted().forEachOrdered(s -> blockNames.add(s));
+				.filter(JsonElement::isJsonPrimitive)
+				.filter(e -> e.getAsJsonPrimitive().isString())
+				.map(JsonElement::getAsString)
+				.filter(name -> BlockUtils.getBlockStateForName(name) != null)
+				.distinct().sorted()
+				.forEachOrdered(blockNames::add);
 	}
 	
 	@Override

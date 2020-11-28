@@ -8,29 +8,75 @@
 package net.wurstclient.forge.utils;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.network.NetHandlerPlayClient;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.CPacketAnimation;
 import net.minecraft.network.play.client.CPacketPlayerDigging;
 import net.minecraft.network.play.client.CPacketPlayerDigging.Action;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
+import net.minecraft.util.*;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
+import net.minecraftforge.registries.GameData;
 import net.wurstclient.forge.ForgeWurst;
 import net.wurstclient.forge.compatibility.WMinecraft;
 import net.wurstclient.forge.compatibility.WPlayerController;
 import net.wurstclient.forge.compatibility.WVec3d;
 
+import javax.annotation.Nullable;
+
 public final class BlockUtils
 {
+
 	private static final Minecraft mc = Minecraft.getMinecraft();
+
+	private static final Map<String, IBlockState[]> nameToBlock = new HashMap<>();
+	private static final Map<IBlockState, String[]> blockToName = new HashMap<>();
+
+	private static void updateBlockMap() {
+		ObjectIntIdentityMap<IBlockState> blockItemMap = GameData.getBlockStateIDMap();
+		for (IBlockState blockState : blockItemMap) {
+			Block block = blockState.getBlock();
+			String blockName = Objects.requireNonNull(block.getRegistryName()).getResourceDomain() + ":" + block.getRegistryName().getResourcePath();
+			String blockId = String.valueOf(Block.REGISTRY.getIDForObject(block));
+			Item blockItem = Item.getItemFromBlock(block);
+
+			IBlockState[] blockStates;
+
+			blockToName.put(blockState, new String[] { blockName, blockName + "/0"});
+			if (blockItem.getHasSubtypes()){
+				NonNullList<ItemStack> subItems = NonNullList.create();
+				blockItem.getSubItems(CreativeTabs.SEARCH, subItems);
+
+				blockStates = new IBlockState[subItems.size()];
+				blockStates[0] = blockState;
+
+				for (int i = 1; i < subItems.size(); i++){
+					blockStates[i] = Block.getBlockFromItem(subItems.get(i).getItem()).getStateFromMeta(i);
+					blockToName.put(blockStates[i], new String[] {blockName, blockName + "/" + i});
+				}
+			}
+			else {
+				blockStates = new IBlockState[] {blockState};
+			}
+			nameToBlock.put(blockName, blockStates);
+			nameToBlock.put(blockId, blockStates);
+		}
+	}
 	
 	public static IBlockState getState(BlockPos pos)
 	{
@@ -46,12 +92,80 @@ public final class BlockUtils
 	{
 		return Block.getIdFromBlock(getBlock(pos));
 	}
-	
-	public static String getName(Block block)
-	{
-		return "" + Block.REGISTRY.getNameForObject(block);
+
+	@Nullable
+	public static String idToName(String id) {
+		String[] nameAndId = BlockUtils.parseName(id);
+
+		IBlockState blockState = getBlockStateForName(nameAndId[0]);
+		if (blockState == null)
+			return null;
+
+		String mainName = getMainName(blockState.getBlock());
+		if (mainName == null)
+			return null;
+
+		if (nameAndId[1] != null)
+			mainName += "/" + nameAndId[1];
+		return mainName;
 	}
-	
+
+	@Nullable
+	public static String getMainName(Block block)
+	{
+		if (blockToName.size() == 0)
+			updateBlockMap();
+
+		if (blockToName.containsKey(block.getDefaultState()))
+			return blockToName.get(block.getDefaultState())[0];
+		else
+			return null;
+	}
+
+	@Nullable
+	public static String[] getNamePair(IBlockState blockState) {
+		if (blockToName.size() == 0)
+			updateBlockMap();
+
+		return blockToName.getOrDefault(blockState, null);
+	}
+
+	private static String[] parseName(String name) {
+		Pattern pattern = Pattern.compile("([^/]+)/(\\d+)");
+		Matcher matcher = pattern.matcher(name);
+
+		if (matcher.matches())
+		{
+			return new String[] { matcher.group(1), matcher.group(2) };
+		}
+		else {
+			return new String[] { name, null };
+		}
+	}
+	@Nullable
+	public static IBlockState getBlockStateForName(String name) {
+		if (nameToBlock.size() == 0)
+			updateBlockMap();
+
+		String[] nameAndId = BlockUtils.parseName(name);
+		String mainName = nameAndId[0];
+		int id = nameAndId[1] == null ? 0 : Integer.parseInt(nameAndId[1]);
+		if (nameToBlock.containsKey(mainName))
+		{
+			IBlockState[] states = nameToBlock.get(mainName);
+			if (states.length > id)
+				return states[id];
+		}
+		return null;
+	}
+
+
+	public static ItemStack getItemStackForBlockState(IBlockState state) {
+		if (state == null)
+			return new ItemStack(Blocks.AIR);
+		return new ItemStack(state.getBlock(), 1, state.getBlock().getMetaFromState(state));
+	}
+
 	public static Material getMaterial(BlockPos pos)
 	{
 		return getState(pos).getMaterial();

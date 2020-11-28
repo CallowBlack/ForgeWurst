@@ -7,22 +7,10 @@
  */
 package net.wurstclient.forge.clickgui;
 
-import java.io.IOException;
-import java.util.List;
-
-import org.lwjgl.input.Keyboard;
-import org.lwjgl.input.Mouse;
-import org.lwjgl.opengl.GL11;
-
 import com.mojang.realmsclient.gui.ChatFormatting;
-
-import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.GuiTextField;
-import net.minecraft.client.gui.GuiYesNo;
+import net.minecraft.client.gui.*;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.init.Blocks;
@@ -31,6 +19,13 @@ import net.minecraftforge.fml.client.GuiScrollingList;
 import net.wurstclient.forge.compatibility.WItem;
 import net.wurstclient.forge.compatibility.WMinecraft;
 import net.wurstclient.forge.settings.BlockListSetting;
+import net.wurstclient.forge.utils.BlockUtils;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
+
+import java.io.IOException;
+import java.util.List;
 
 public final class EditBlockListScreen extends GuiScreen
 {
@@ -42,8 +37,8 @@ public final class EditBlockListScreen extends GuiScreen
 	private GuiButton addButton;
 	private GuiButton removeButton;
 	private GuiButton doneButton;
-	
-	private Block blockToAdd;
+
+	private IBlockState blockStateToAdd;
 	
 	public EditBlockListScreen(GuiScreen prevScreen, BlockListSetting slider)
 	{
@@ -76,15 +71,14 @@ public final class EditBlockListScreen extends GuiScreen
 	}
 	
 	@Override
-	protected void actionPerformed(GuiButton button) throws IOException
-	{
+	protected void actionPerformed(GuiButton button) {
 		if(!button.enabled)
 			return;
 		
 		switch(button.id)
 		{
 			case 0:
-			blockList.add(blockToAdd);
+			blockList.add(blockNameField.getText());
 			blockNameField.setText("");
 			break;
 			
@@ -135,8 +129,7 @@ public final class EditBlockListScreen extends GuiScreen
 	}
 	
 	@Override
-	protected void keyTyped(char typedChar, int keyCode) throws IOException
-	{
+	protected void keyTyped(char typedChar, int keyCode) {
 		blockNameField.textboxKeyTyped(typedChar, keyCode);
 		
 		if(keyCode == Keyboard.KEY_RETURN)
@@ -152,8 +145,8 @@ public final class EditBlockListScreen extends GuiScreen
 	{
 		blockNameField.updateCursorCounter();
 		
-		blockToAdd = Block.getBlockFromName(blockNameField.getText());
-		addButton.enabled = blockToAdd != null;
+		blockStateToAdd = BlockUtils.getBlockStateForName(blockNameField.getText());
+		addButton.enabled = blockStateToAdd != null;
 		
 		removeButton.enabled =
 			listGui.selected >= 0 && listGui.selected < listGui.list.size();
@@ -173,20 +166,20 @@ public final class EditBlockListScreen extends GuiScreen
 		super.drawScreen(mouseX, mouseY, partialTicks);
 		
 		if(blockNameField.getText().isEmpty() && !blockNameField.isFocused())
-			drawString(WMinecraft.getFontRenderer(), "block name or ID", 68,
+			drawString(WMinecraft.getFontRenderer(), "Block ame or id [/subtype]", 68,
 				height - 50, 0x808080);
 		
-		drawRect(48, height - 56, 64, height - 36, 0xffa0a0a0);
-		drawRect(49, height - 55, 64, height - 37, 0xff000000);
-		drawRect(214, height - 56, 244, height - 55, 0xffa0a0a0);
-		drawRect(214, height - 37, 244, height - 36, 0xffa0a0a0);
-		drawRect(244, height - 56, 246, height - 36, 0xffa0a0a0);
-		drawRect(214, height - 55, 243, height - 52, 0xff000000);
-		drawRect(214, height - 40, 243, height - 37, 0xff000000);
-		drawRect(215, height - 55, 216, height - 37, 0xff000000);
-		drawRect(242, height - 55, 245, height - 37, 0xff000000);
+		drawRect(48, height - 56, 64, height - 36, 	0xffa0a0a0);
+		drawRect(49, height - 55, 64, height - 37, 	0xff000000);
+		drawRect(214, height - 56, 244, height - 55, 	0xffa0a0a0);
+		drawRect(214, height - 37, 244, height - 36, 	0xffa0a0a0);
+		drawRect(244, height - 56, 246, height - 36, 	0xffa0a0a0);
+		drawRect(214, height - 55, 243, height - 52, 	0xff000000);
+		drawRect(214, height - 40, 243, height - 37, 	0xff000000);
+		drawRect(215, height - 55, 216, height - 37, 	0xff000000);
+		drawRect(242, height - 55, 245, height - 37, 	0xff000000);
 		
-		listGui.renderIconAndGetName(new ItemStack(blockToAdd), height - 52);
+		listGui.renderIconAndGetName(BlockUtils.getItemStackForBlockState(blockStateToAdd), height - 52);
 	}
 	
 	private static class ListGui extends GuiScrollingList
@@ -234,13 +227,17 @@ public final class EditBlockListScreen extends GuiScreen
 			int slotBuffer, Tessellator tess)
 		{
 			String name = list.get(slotIdx);
-			
-			ItemStack stack = new ItemStack(Block.getBlockFromName(name));
-			FontRenderer fr = WMinecraft.getFontRenderer();
-			
-			String displayName = renderIconAndGetName(stack, slotTop);
-			fr.drawString(displayName + " (" + name + ")", 68, slotTop + 2,
-				0xf0f0f0);
+
+			IBlockState blockState = BlockUtils.getBlockStateForName(name);
+			if (blockState != null){
+				ItemStack stack = BlockUtils.getItemStackForBlockState(blockState);
+
+				FontRenderer fr = WMinecraft.getFontRenderer();
+
+				String displayName = renderIconAndGetName(stack, slotTop);
+				fr.drawString(displayName + " (" + name + ")", 68, slotTop + 2,
+						0xf0f0f0);
+			}
 		}
 		
 		private String renderIconAndGetName(ItemStack stack, int y)
